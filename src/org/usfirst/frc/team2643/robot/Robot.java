@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 
 package org.usfirst.frc.team2643.robot;
 
@@ -90,13 +91,17 @@ public class Robot extends IterativeRobot
     /**
      * This function is called periodically during autonomous
      */
+	 
+	 /*
+	 * Fix: put comments ont the TOP of all cases saying what they do, not the bottom
+	 */
     public void autonomousPeriodic() 
     {
         Scheduler.getInstance().run();
         switch (state)
         {
         	case 0:
-        		forwardLeftMotor.set(forward);
+        		forwardLeftMotor.set(forward);//Fix: Call it "forwardSpeed" instead of forward
                 forwardRightMotor.set(forward);
                 backLeftMotor.set(forward);
                 backRightMotor.set(forward);
@@ -113,9 +118,9 @@ public class Robot extends IterativeRobot
                 forwardRightMotor.set(0);
                 backLeftMotor.set(0);
                 backRightMotor.set(0);
-                linearSlideMotor1.set(up);
+                linearSlideMotor1.set(up);//Fix: use "slideSpeedUp" instead of "up"
                 linearSlideMotor2.set(up);
-                if(switchTop.get() || linearSlideEncoder.get() >= upDistance)
+                if(switchTop.get() || linearSlideEncoder.get() >= upDistance)//Fix: use "slideSwitchTop" instead of "switchTop"
                 {
                 	if(counter >= 3)
                     {
@@ -148,8 +153,8 @@ public class Robot extends IterativeRobot
                 forwardRightMotor.set(0);
                 backLeftMotor.set(0);
                 backRightMotor.set(0);
-                strifeMotor.set(left);
-                if(strifeEncoder.get() >= leftDistance)
+                strifeMotor.set(left);//Fix: "sideSpeed" instead of "left"
+                if(strifeEncoder.get() >= leftDistance)//Fix: "sideStrafeDistance" instead of "leftDistance"
                 {
                 	state = 4;
                 }
@@ -329,4 +334,49 @@ public class Robot extends IterativeRobot
      
         
     }
+=======
+package org.usfirst.frc.team2643.robot;
+
+import edu.wpi.first.wpilibj.IterativeRobot;
+
+import edu.wpi.first.wpilibj.Joystick;
+import edu.wpi.first.wpilibj.RobotDrive;
+import edu.wpi.first.wpilibj.livewindow.LiveWindow;
+
+import java.awt.image.BufferedImage;
+
+public class Robot extends IterativeRobot
+{
+	
+    public void robotInit()
+    {
+    	
+    }
+    
+    public void autonomousInit()
+    {
+    	
+    }
+    
+    public void autonomousPeriodic()
+    {
+    	
+    }
+    
+    public void teleopInit()
+    {
+    	
+    }
+    
+    public void teleopPeriodic()
+    {
+    	
+    }
+    
+    public void testPeriodic()
+    {
+    	LiveWindow.run();
+    }
+    
+>>>>>>> Stashed changes
 }
