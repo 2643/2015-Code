@@ -1,4 +1,3 @@
-<<<<<<< Updated upstream
 
 package org.usfirst.frc.team2643.robot;
 
@@ -30,8 +29,8 @@ public class Robot extends IterativeRobot
 	SpeedController backLeftMotor;
 	SpeedController backRightMotor;
 	SpeedController strifeMotor;
-	DigitalInput switchTop;
-	DigitalInput switchBottom;
+	DigitalInput slideSwitchTop;
+	DigitalInput slideSwitchBottom;
 	DigitalInput frontLeftLimitSwitch;
 	DigitalInput frontRightLimitSwitch;
 	Joystick pad = new Joystick(1);
@@ -48,12 +47,12 @@ public class Robot extends IterativeRobot
 	int downDistance = 0;
 	int counter = 1;
 	int autonDistance = 0;
-	int forward = 1;
-	int back = -1;
-	int up = 1;
-	int down = -1;
-	int left = 1;
-	int right = 1;
+	int forwardSpeed = 1;
+	int backSpeed = -1;
+	int slideSpeedUp = 1;
+	int slideSpeedDown = -1;
+	int leftSpeed = 1;
+	int rightSpeed = 1;
 	public static final ExampleSubsystem exampleSubsystem = new ExampleSubsystem();
 	public static OI oi;
 	
@@ -86,41 +85,40 @@ public class Robot extends IterativeRobot
     {
         // schedule the autonomous command (example)
         if (autonomousCommand != null) autonomousCommand.start();
+        frontRightEncoder.reset();
+        frontLeftEncoder.reset();
+        strifeEncoder.reset();
+        linearSlideEncoder.reset();
     }
 
     /**
      * This function is called periodically during autonomous
      */
-	 
-	 /*
-	 * Fix: put comments ont the TOP of all cases saying what they do, not the bottom
-	 */
     public void autonomousPeriodic() 
     {
         Scheduler.getInstance().run();
         switch (state)
         {
-        	case 0:
-        		forwardLeftMotor.set(forward);//Fix: Call it "forwardSpeed" instead of forward
-                forwardRightMotor.set(forward);
-                backLeftMotor.set(forward);
-                backRightMotor.set(forward);
+        	case 0://move forward and both limit switches are hit moves to state 1
+        		forwardLeftMotor.set(forwardSpeed);
+                forwardRightMotor.set(forwardSpeed);
+                backLeftMotor.set(forwardSpeed);
+                backRightMotor.set(forwardSpeed);
                 if(frontLeftLimitSwitch.get() && frontRightLimitSwitch.get() )
                 {
                 	counter ++;
                 	state = 1;
                 }
                 break;
-                //move forward and both limit switches are hit moves to state 1
                 
-        	case 1:
+        	case 1://motor stop, slide moves up, if slide reaches top or goes a certain distance goes to state 2, or MOVES TO STATE 8
         		forwardLeftMotor.set(0);
                 forwardRightMotor.set(0);
                 backLeftMotor.set(0);
                 backRightMotor.set(0);
-                linearSlideMotor1.set(up);//Fix: use "slideSpeedUp" instead of "up"
-                linearSlideMotor2.set(up);
-                if(switchTop.get() || linearSlideEncoder.get() >= upDistance)//Fix: use "slideSwitchTop" instead of "switchTop"
+                linearSlideMotor1.set(slideSpeedUp);
+                linearSlideMotor2.set(slideSpeedUp);
+                if(slideSwitchTop.get() || linearSlideEncoder.get() >= upDistance)
                 {
                 	if(counter >= 3)
                     {
@@ -132,78 +130,72 @@ public class Robot extends IterativeRobot
                 	}
                 }
                 break;
-                //motor stop, slide moves up, if slide reaches top or goes a certain distance goes to state 2, or MOVES TO STATE 8
                 
-        	case 2:
+        	case 2://slide stops, moves back, if moves a certain distance, move to state 3
         		linearSlideMotor1.set(0);
                 linearSlideMotor2.set(0);
-                forwardLeftMotor.set(back);
-                forwardRightMotor.set(back);
-                backLeftMotor.set(back);
-                backRightMotor.set(back);
+                forwardLeftMotor.set(backSpeed);
+                forwardRightMotor.set(backSpeed);
+                backLeftMotor.set(backSpeed);
+                backRightMotor.set(backSpeed);
                 if(frontLeftEncoder.get() >= backDistance || frontRightEncoder.get() >= backDistance)
                 {
                 	state = 3;
                 }
         		break;
-                //slide stops, moves back, if moves a certain distance, move to state 3
-        		
-        	case 3:
+                
+        	case 3://motors stop, and move to right/left, if goes a certain distance, move to state 4
         		forwardLeftMotor.set(0);
                 forwardRightMotor.set(0);
                 backLeftMotor.set(0);
                 backRightMotor.set(0);
-                strifeMotor.set(left);//Fix: "sideSpeed" instead of "left"
-                if(strifeEncoder.get() >= leftDistance)//Fix: "sideStrafeDistance" instead of "leftDistance"
+                strifeMotor.set(leftSpeed);
+                if(strifeEncoder.get() >= leftDistance)
                 {
                 	state = 4;
                 }
         		break;
-                //motors stop, and move to right/left, if goes a certain distance, move to state 4
-        		
-        	case 4:
-        		forwardLeftMotor.set(forward);
-                forwardRightMotor.set(forward);
-                backLeftMotor.set(forward);
-                backRightMotor.set(forward);
+
+        	case 4://move forward, if the robot goes a certain distance, it moves to state 5
+        		forwardLeftMotor.set(forwardSpeed);
+                forwardRightMotor.set(forwardSpeed);
+                backLeftMotor.set(forwardSpeed);
+                backRightMotor.set(forwardSpeed);
                 if(frontLeftEncoder.get() >= forwardDistance || frontRightEncoder.get() >= forwardDistance)
                 {
-                	state = 5;
+                	state = 5;	
                 }
         		break;
-        		//move forward, if the robot goes a certain distance, it moves to state 5
         		
-        	case 5:
-        		linearSlideMotor1.set(down);
-        		linearSlideMotor2.set(down);
+        	case 5://linear slide goes down, if slide is down a certain distance move to state 6
+        		linearSlideMotor1.set(slideSpeedDown);
+        		linearSlideMotor2.set(slideSpeedDown);
         		if(linearSlideEncoder.get() >= downDistance)
         		{
         			state = 6;
         		}
         		break;
-        		//linear slide goes down, if slide is down a certain distance move to state 6
         		
-        	case 6:
-        		forwardLeftMotor.set(back);
-                forwardRightMotor.set(back);
-                backLeftMotor.set(back);
-                backRightMotor.set(back);
+        	case 6://moves back, if goes a certain distance move to state 7
+        		forwardLeftMotor.set(backSpeed);
+                forwardRightMotor.set(backSpeed);
+                backLeftMotor.set(backSpeed);
+                backRightMotor.set(backSpeed);
                 if(frontLeftEncoder.get() >= backDistance || frontRightEncoder.get() >= backDistance)
                 {
                 	state = 7;
                 }
                 break;
-                //moves back, if goes a certain distance move to state 7
                 
-        	case 7:
-        		linearSlideMotor1.set(down);
-        		linearSlideMotor2.set(down);
+        	case 7://slide moves down, if slide moves a certain distance goes back to state 0
+        		linearSlideMotor1.set(slideSpeedDown);
+        		linearSlideMotor2.set(slideSpeedDown);
         		if(linearSlideEncoder.get() >= downDistance)
         		{
         			state = 0;
         		}
         		break;
-        		//slide moves down, if slide moves a certain distance goes back to state 0
+        		
         		
         	case 8:
         		//Do something to go to auton zone
@@ -247,7 +239,7 @@ public class Robot extends IterativeRobot
     	
     	
         LiveWindow.run();
-        if(pad.getY() > 0)
+        if(pad.getX() > 0)
         {
         	forwardLeftMotor.set(1);
         	forwardRightMotor.set(1);
@@ -255,7 +247,7 @@ public class Robot extends IterativeRobot
         	backRightMotor.set(1);
         	// all motors moves forward
         }
-        else if(pad.getY() < 0)
+        else if(pad.getX() < 0)
         {
         	forwardLeftMotor.set(-1);
         	forwardRightMotor.set(-1);
@@ -263,7 +255,7 @@ public class Robot extends IterativeRobot
         	backRightMotor.set(-1);
         	//all motors move back
         }
-        else if(pad.getY() == 0)
+        else if(pad.getX() == 0)
         {
         	forwardLeftMotor.set(0);
         	forwardRightMotor.set(0);
@@ -272,54 +264,54 @@ public class Robot extends IterativeRobot
         	//stops all motors
         }
         	
-        if(pad.getX() > 0)
+        if(pad.getY() > 0)
         {
-        	strifeMotor.set(1);
-        	//either moving left or right
+        	forwardLeftMotor.set(1);
+        	forwardRightMotor.set(-1);
+        	backLeftMotor.set(1);
+        	backRightMotor.set(-1);
+        	//move left
         }
-        else if(pad.getX() < 0)
+        else if(pad.getY() < 0)
         {
-        	strifeMotor.set(-1);
-        	//either moving left or right
+        	forwardLeftMotor.set(-1);
+        	forwardRightMotor.set(1);
+        	backLeftMotor.set(-1);
+        	backRightMotor.set(1);
+        	//move right
         }
         else if(pad.getX() == 0)
         {
-        	strifeMotor.set(0);
+        	forwardLeftMotor.set(0);
+        	forwardRightMotor.set(0);
+        	backLeftMotor.set(0);
+        	backRightMotor.set(0);
         	//no longer moving left or right
         }
         
-        if(pad.getRawButton(1))
+        if(pad.getZ() > 0)
         {
-        	forwardLeftMotor.set(-1);
-            forwardRightMotor.set(1);
-            backLeftMotor.set(-1);
-            backRightMotor.set(1);
-            //turnRight
+        	strifeMotor.set(1);
+            //strife right
         }
-        else if(pad.getRawButton(3))
+        else if(pad.getZ() < 0)
         {
-        	forwardLeftMotor.set(1);
-            forwardRightMotor.set(-1);
-            backLeftMotor.set(1);
-            backRightMotor.set(-1);
-            //turnLeft
+        	strifeMotor.set(-1);
+            //strife left
         }
         else
         {
-        	forwardLeftMotor.set(0);
-            forwardRightMotor.set(0);
-            backLeftMotor.set(0);
-            backRightMotor.set(0);
+        	strifeMotor.set(0);
             //stop
         }
         
-        if(pad.getRawButton(4) && !switchTop.get())
+        if(pad.getRawButton(4) && !slideSwitchTop.get())
         {
         	linearSlideMotor1.set(1);
         	linearSlideMotor2.set(1);
         	//linear slide moves up
         }
-        else if(pad.getRawButton(2) && !switchBottom.get())
+        else if(pad.getRawButton(2) && !slideSwitchBottom.get())
         {
         	linearSlideMotor2.set(-1);
         	linearSlideMotor1.set(-1);
@@ -331,52 +323,5 @@ public class Robot extends IterativeRobot
         	linearSlideMotor1.set(0);
         	//linear slide doesn't move
         }
-     
-        
     }
-=======
-package org.usfirst.frc.team2643.robot;
-
-import edu.wpi.first.wpilibj.IterativeRobot;
-
-import edu.wpi.first.wpilibj.Joystick;
-import edu.wpi.first.wpilibj.RobotDrive;
-import edu.wpi.first.wpilibj.livewindow.LiveWindow;
-
-import java.awt.image.BufferedImage;
-
-public class Robot extends IterativeRobot
-{
-	
-    public void robotInit()
-    {
-    	
-    }
-    
-    public void autonomousInit()
-    {
-    	
-    }
-    
-    public void autonomousPeriodic()
-    {
-    	
-    }
-    
-    public void teleopInit()
-    {
-    	
-    }
-    
-    public void teleopPeriodic()
-    {
-    	
-    }
-    
-    public void testPeriodic()
-    {
-    	LiveWindow.run();
-    }
-    
->>>>>>> Stashed changes
 }
