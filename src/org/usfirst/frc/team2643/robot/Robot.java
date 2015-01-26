@@ -33,7 +33,8 @@ public class Robot extends IterativeRobot
 	DigitalInput slideSwitchBottom;
 	DigitalInput frontLeftLimitSwitch;
 	DigitalInput frontRightLimitSwitch;
-	Joystick pad = new Joystick(1);
+	Joystick padDriver = new Joystick(1);
+	Joystick padOperator = new Joystick(2);
 	Encoder frontRightEncoder = new Encoder( 1 , 2 );
 	Encoder frontLeftEncoder = new Encoder ( 1 , 2 );
 	Encoder strifeEncoder = new Encoder ( 1 , 2);
@@ -239,7 +240,7 @@ public class Robot extends IterativeRobot
     	
     	
         LiveWindow.run();
-        if(pad.getX() > 0)
+        if(padDriver.getX() > 0)
         {
         	forwardLeftMotor.set(1);
         	forwardRightMotor.set(1);
@@ -247,7 +248,7 @@ public class Robot extends IterativeRobot
         	backRightMotor.set(1);
         	// all motors moves forward
         }
-        else if(pad.getX() < 0)
+        else if(padDriver.getX() < 0)
         {
         	forwardLeftMotor.set(-1);
         	forwardRightMotor.set(-1);
@@ -255,7 +256,7 @@ public class Robot extends IterativeRobot
         	backRightMotor.set(-1);
         	//all motors move back
         }
-        else if(pad.getX() == 0)
+        else if(padDriver.getX() == 0)
         {
         	forwardLeftMotor.set(0);
         	forwardRightMotor.set(0);
@@ -264,7 +265,7 @@ public class Robot extends IterativeRobot
         	//stops all motors
         }
         	
-        if(pad.getY() > 0)
+        if(padDriver.getY() > 0)
         {
         	forwardLeftMotor.set(1);
         	forwardRightMotor.set(-1);
@@ -272,7 +273,7 @@ public class Robot extends IterativeRobot
         	backRightMotor.set(-1);
         	//move left
         }
-        else if(pad.getY() < 0)
+        else if(padDriver.getY() < 0)
         {
         	forwardLeftMotor.set(-1);
         	forwardRightMotor.set(1);
@@ -280,7 +281,7 @@ public class Robot extends IterativeRobot
         	backRightMotor.set(1);
         	//move right
         }
-        else if(pad.getX() == 0)
+        else if(padDriver.getX() == 0)
         {
         	forwardLeftMotor.set(0);
         	forwardRightMotor.set(0);
@@ -289,12 +290,62 @@ public class Robot extends IterativeRobot
         	//no longer moving left or right
         }
         
-        if(pad.getZ() > 0)
+        if(padDriver.getX() > 0 && padDriver.getRawButton(1))
+        {
+        	forwardLeftMotor.set(0.5);
+        	forwardRightMotor.set(0.5);
+        	backLeftMotor.set(0.5);
+        	backRightMotor.set(0.5);
+        	//slows all motors moves forward
+        }
+        else if(padDriver.getX() < 0 && padDriver.getRawButton(1))
+        {
+        	forwardLeftMotor.set(-0.5);
+        	forwardRightMotor.set(-0.5);
+        	backLeftMotor.set(-0.5);
+        	backRightMotor.set(-0.5);
+        	//slows all motors move back
+        }
+        else if(padDriver.getX() == 0)
+        {
+        	forwardLeftMotor.set(0);
+        	forwardRightMotor.set(0);
+        	backLeftMotor.set(0);
+        	backRightMotor.set(0);
+        	//stops all motors
+        }
+        	
+        if(padDriver.getY() > 0 && padDriver.getRawButton(1))
+        {
+        	forwardLeftMotor.set(0.5);
+        	forwardRightMotor.set(-0.5);
+        	backLeftMotor.set(0.5);
+        	backRightMotor.set(-0.5);
+        	//slowly move left
+        }
+        else if(padDriver.getY() < 0 && padDriver.getRawButton(1))
+        {
+        	forwardLeftMotor.set(-0.5);
+        	forwardRightMotor.set(0.5);
+        	backLeftMotor.set(-0.5);
+        	backRightMotor.set(0.5);
+        	//slowly move right 
+        }
+        else if(padDriver.getX() == 0)
+        {
+        	forwardLeftMotor.set(0);
+        	forwardRightMotor.set(0);
+        	backLeftMotor.set(0);
+        	backRightMotor.set(0);
+        	//no longer moving left or right
+        }
+        
+        if(padDriver.getZ() > 0)
         {
         	strifeMotor.set(1);
             //strife right
         }
-        else if(pad.getZ() < 0)
+        else if(padDriver.getZ() < 0)
         {
         	strifeMotor.set(-1);
             //strife left
@@ -305,13 +356,13 @@ public class Robot extends IterativeRobot
             //stop
         }
         
-        if(pad.getRawButton(4) && !slideSwitchTop.get())
+        if(padOperator.getRawButton(4) && !slideSwitchTop.get())
         {
         	linearSlideMotor1.set(1);
         	linearSlideMotor2.set(1);
         	//linear slide moves up
         }
-        else if(pad.getRawButton(2) && !slideSwitchBottom.get())
+        else if(padOperator.getRawButton(2) && !slideSwitchBottom.get())
         {
         	linearSlideMotor2.set(-1);
         	linearSlideMotor1.set(-1);
