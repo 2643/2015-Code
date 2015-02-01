@@ -1,4 +1,3 @@
-
 package org.usfirst.frc.team2643.robot;
 
 import edu.wpi.first.wpilibj.DigitalInput;
@@ -6,13 +5,14 @@ import edu.wpi.first.wpilibj.Encoder;
 import edu.wpi.first.wpilibj.IterativeRobot;
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.SpeedController;
+import edu.wpi.first.wpilibj.Talon;
 import edu.wpi.first.wpilibj.command.Command;
 import edu.wpi.first.wpilibj.command.Scheduler;
 import edu.wpi.first.wpilibj.livewindow.LiveWindow;
 
 import org.usfirst.frc.team2643.robot.commands.ExampleCommand;
 import org.usfirst.frc.team2643.robot.subsystems.ExampleSubsystem;
-
+// DIVIDE ENCODERS BY 360 && MULTIPLY BY DIAMETER AND Math.PI//
 /**
  * The VM is configured to automatically run this class, and to call the
  * functions corresponding to each mode, as described in the IterativeRobot
@@ -22,23 +22,24 @@ import org.usfirst.frc.team2643.robot.subsystems.ExampleSubsystem;
  */
 public class Robot extends IterativeRobot 
 {
+	Talon forwardLeftMotor = new Talon(5);
+	Talon backLeftMotor = new Talon(6);
+	Talon forwardRightMotor = new Talon(7);
+	Talon backRightMotor = new Talon(9);
 	SpeedController linearSlideMotor1;
 	SpeedController linearSlideMotor2;
-	SpeedController forwardLeftMotor;
-	SpeedController forwardRightMotor;
-	SpeedController backLeftMotor;
-	SpeedController backRightMotor;
-	SpeedController strifeMotor;
+	SpeedController strafeMotor1;
+	SpeedController strafeMotor2;
 	DigitalInput slideSwitchTop;
 	DigitalInput slideSwitchBottom;
 	DigitalInput frontLeftLimitSwitch;
 	DigitalInput frontRightLimitSwitch;
 	Joystick padDriver = new Joystick(1);
 	Joystick padOperator = new Joystick(2);
-	Encoder frontRightEncoder = new Encoder( 1 , 2 );
-	Encoder frontLeftEncoder = new Encoder ( 1 , 2 );
-	Encoder strifeEncoder = new Encoder ( 1 , 2);
-	Encoder linearSlideEncoder = new Encoder ( 1 , 2 );
+	Encoder frontRightEncoder = new Encoder( 2 , 3 );
+	Encoder frontLeftEncoder = new Encoder ( 0 , 1 );
+	Encoder strafeEncoder = new Encoder ( 6 , 7 );
+	Encoder linearSlideEncoder = new Encoder ( 4 , 5 );
 	int state = 0;
 	int backDistance = 0;
 	int forwardDistance = 0;
@@ -55,10 +56,21 @@ public class Robot extends IterativeRobot
 	int leftSpeed = 1;
 	int rightSpeed = 1;
 	int stop = 0;
+	int diameter = 0;
 	public static final ExampleSubsystem exampleSubsystem = new ExampleSubsystem();
 	public static OI oi;
 		
     Command autonomousCommand;
+    
+    public int desire( int desiredPosition )
+    {
+    	if(linearSlideEncoder.get() <= 360 )
+    	{
+    		linearSlideMotor1.set( - linearSlideEncoder.get() );
+    		linearSlideMotor2.set( - linearSlideEncoder.get() );
+    	}
+		return desiredPosition;
+    }
 
     /**
      * This function is run when the robot is first started up and should be
@@ -69,7 +81,7 @@ public class Robot extends IterativeRobot
 		oi = new OI();
 		frontRightEncoder.reset();
 		frontLeftEncoder.reset();
-		strifeEncoder.reset();
+		strafeEncoder.reset();
 		linearSlideEncoder.reset();
 		
         // instantiate the command used for the autonomous period
@@ -87,7 +99,7 @@ public class Robot extends IterativeRobot
         if (autonomousCommand != null) autonomousCommand.start();
         frontRightEncoder.reset();
         frontLeftEncoder.reset();
-        strifeEncoder.reset();
+        strafeEncoder.reset();
         linearSlideEncoder.reset();
     }
 
@@ -96,8 +108,13 @@ public class Robot extends IterativeRobot
      */
     public void autonomousPeriodic() 
     {
+    	if(linearSlideEncoder.get() <= 360 )
+    	{
+    		linearSlideMotor1.set( - linearSlideEncoder.get() );
+    		linearSlideMotor2.set( - linearSlideEncoder.get() );
+    	}
         Scheduler.getInstance().run();
-        if(/*position left*/)
+       // if(/*position left*/)
         {
         	switch (state)
         	{
@@ -132,7 +149,7 @@ public class Robot extends IterativeRobot
         			backRightMotor.set(stop);
         			linearSlideMotor1.set(slideSpeedUp);
         			linearSlideMotor2.set(slideSpeedUp);
-        			if(slideSwitchTop.get() || linearSlideEncoder.get() >= upDistance)
+        			if(slideSwitchTop.get() || linearSlideEncoder.get() >= upDistance)//maybe change the distance
         			{
         				if(counter >= 3)
         				{
@@ -152,7 +169,7 @@ public class Robot extends IterativeRobot
         			forwardRightMotor.set(backSpeed);
         			backLeftMotor.set(backSpeed);
         			backRightMotor.set(backSpeed);
-        			if(frontLeftEncoder.get() >= backDistance || frontRightEncoder.get() >= backDistance)
+        			if((frontLeftEncoder.get() / 360) * diameter * Math.PI >= backDistance || frontRightEncoder.get() >= backDistance)
         			{
         				state = 3;
         			}
@@ -163,8 +180,9 @@ public class Robot extends IterativeRobot
         			forwardRightMotor.set(stop);
         			backLeftMotor.set(stop);
         			backRightMotor.set(stop);
-        			strifeMotor.set(leftSpeed);
-                if(strifeEncoder.get() >= leftDistance)
+        			strafeMotor1.set(rightSpeed);
+        			strafeMotor2.set(rightSpeed);
+                if(strafeEncoder.get() >= rightDistance)
                 {
                 	state = 4;
                 }
@@ -210,13 +228,12 @@ public class Robot extends IterativeRobot
 	        		}
 	        		break;
         		
-        		
         		case 8:
         			//Do something to go to auton zone
         			break;
         	}
         }
-        else if(/*position middle*/)
+      //  else if(/*position middle*/)
         {
         	switch(state)
         	{
@@ -281,10 +298,12 @@ public class Robot extends IterativeRobot
     			forwardRightMotor.set(stop);
     			backLeftMotor.set(stop);
     			backRightMotor.set(stop);
-    			strifeMotor.set(leftSpeed);
-    			if(strifeEncoder.get() >= leftDistance)
+    			strafeMotor1.set(leftSpeed);
+    			strafeMotor2.set(leftSpeed);
+    			if(strafeEncoder.get() >= leftDistance)
     			{
-    				strifeMotor.set(stop);
+    				strafeMotor1.set(stop);
+    				strafeMotor2.set(stop);
     				state = 4;
     			}
     			break;
@@ -332,8 +351,9 @@ public class Robot extends IterativeRobot
     		case 8:
     			linearSlideMotor1.set(stop);
     			linearSlideMotor2.set(stop);
-    			strifeMotor.set(rightDistance * 2 );
-    			if(strifeEncoder.get() >= rightDistance)
+    			strafeMotor1.set(rightDistance * 2 );
+    			strafeMotor2.set(rightDistance * 2);
+    			if(strafeEncoder.get() >= rightDistance)
     			{
     				state = 0;
     			}
@@ -343,7 +363,7 @@ public class Robot extends IterativeRobot
     			break;
         	}
         }
-        else if(/*right start*/)
+      //  else if(/*right start*/)
         {
         	switch (state)
         	{
@@ -409,8 +429,9 @@ public class Robot extends IterativeRobot
         			forwardRightMotor.set(stop);
         			backLeftMotor.set(stop);
         			backRightMotor.set(stop);
-        			strifeMotor.set(rightSpeed);
-                if(strifeEncoder.get() >= rightDistance)
+        			strafeMotor1.set(rightSpeed);
+        			strafeMotor2.set(rightSpeed);
+                if(strafeEncoder.get() >= rightDistance)
                 {
                 	state = 4;
                 }
@@ -463,7 +484,6 @@ public class Robot extends IterativeRobot
         	}
         }
     }
-        
     
     public void teleopInit() 
     {
@@ -495,6 +515,7 @@ public class Robot extends IterativeRobot
     	}
 		return number;
     }
+    //if number is to large, set to one or negative one
     /**
      * This function is called periodically during operator control
      */
@@ -508,12 +529,14 @@ public class Robot extends IterativeRobot
         	double frontRightSpeed = limit( (padDriver.getY() - padDriver.getZ()) / 2.0 );
         	double backLeftSpeed = limit( (padDriver.getY() + padDriver.getZ()) / 2.0 ) ;
         	double backRightSpeed = limit( (padDriver.getY() - padDriver.getZ()) / 2.0 );
-        	double strafeSpeed = padDriver.getZ() / 2.0;
-        	forwardLeftMotor.set( frontLeftSpeed ); 
-        	forwardRightMotor.set(frontRightSpeed);
-        	backLeftMotor.set(backLeftSpeed); 
-        	backRightMotor.set(frontRightSpeed);
-        	strifeMotor.set( strafeSpeed );
+        	double strafeSpeed = padDriver.getX() / 2.0;
+        	forwardLeftMotor.set( Math.sqrt(frontLeftSpeed) ); 
+        	forwardRightMotor.set( Math.sqrt(frontRightSpeed) );
+        	backLeftMotor.set( Math.sqrt(backLeftSpeed) ); 
+        	backRightMotor.set( Math.sqrt(backRightSpeed) );
+        	strafeMotor1.set( Math.sqrt(strafeSpeed) );
+        	strafeMotor2.set( Math.sqrt(strafeSpeed) );
+        	//moving at half the speed 
         }	
         else
         {
@@ -521,85 +544,29 @@ public class Robot extends IterativeRobot
         	double frontRightSpeed = limit( padDriver.getY() - padDriver.getZ() );
         	double backLeftSpeed = limit(padDriver.getY() + padDriver.getZ() );
         	double backRightSpeed = limit( padDriver.getY() - padDriver.getZ() );
-        	double strafeSpeed = padDriver.getZ();
-        	forwardLeftMotor.set( frontLeftSpeed ); 
-        	forwardRightMotor.set(frontRightSpeed);
-        	backLeftMotor.set(backLeftSpeed); 
-        	backRightMotor.set(frontRightSpeed);     
-        	strifeMotor.set( strafeSpeed );
+        	double strafeSpeed = padDriver.getX();
+        	forwardLeftMotor.set( Math.sqrt(frontLeftSpeed) ); 
+        	forwardRightMotor.set( Math.sqrt(frontRightSpeed) );
+        	backLeftMotor.set( Math.sqrt(backLeftSpeed) ); 
+        	backRightMotor.set( Math.sqrt(backRightSpeed) );     
+        	strafeMotor1.set( Math.sqrt(strafeSpeed) );
+        	strafeMotor2.set( Math.sqrt(strafeSpeed) );
+        	//moving at full speed 
         }
-        
-        
-        	
-        
-        if(padDriver.getZ() > 0  && padDriver.getRawButton(1))
+        //Do Back Drive Soon
+        if(padOperator.getRawButton(1))
         {
-        	forwardLeftMotor.set();
-        	forwardRightMotor.set(0.5);
-        	backLeftMotor.set(-0.5);
-        	backRightMotor.set(0.5);
-            //move right
-        }
-        else if(padDriver.getZ() < 0  && padDriver.getRawButton(1))
-        {
-        	forwardLeftMotor.set(0.5);
-        	forwardRightMotor.set(-0.5);
-        	backLeftMotor.set(0.5);
-        	backRightMotor.set(-0.5);
-            //move left
+        	double linearSlideSpeed = limit(padOperator.getY() / 2.0);
+        	linearSlideMotor1.set( linearSlideSpeed );
+        	linearSlideMotor2.set( linearSlideSpeed );
+        	//linear slide moves determined by the position of the Y axis on the operator pad 
         }
         else
         {
-        	forwardLeftMotor.set(0);
-        	forwardRightMotor.set(0);
-        	backLeftMotor.set(0);
-        	backRightMotor.set(0);
-            //stop
-        }
-        
-        
-        if(padDriver.getZ() > 0  && padDriver.getRawButton(1))
-        {
-        	forwardLeftMotor.set(-0.5);
-        	forwardRightMotor.set(0.5);
-        	backLeftMotor.set(-0.5);
-        	backRightMotor.set(0.5);
-            //move right
-        }
-        else if(padDriver.getZ() < 0 && padDriver.getRawButton(1))
-        {
-        	forwardLeftMotor.set(0.5);
-        	forwardRightMotor.set(-0.5);
-        	backLeftMotor.set(0.5);
-        	backRightMotor.set(-0.5);
-            //move left
-        }
-        else
-        {
-        	forwardLeftMotor.set(0);
-        	forwardRightMotor.set(0);
-        	backLeftMotor.set(0);
-        	backRightMotor.set(0);
-            //stop
-        }
-        
-        if(padOperator.getY() >= 0 && !slideSwitchTop.get())
-        {
-        	linearSlideMotor1.set(1);
-        	linearSlideMotor2.set(1);
-        	//linear slide moves up
-        }
-        else if(padOperator.getY() <= 0 && !slideSwitchBottom.get())
-        {
-        	linearSlideMotor2.set(-1);
-        	linearSlideMotor1.set(-1);
-        	//linear slide moves down
-        }
-        else
-        {
-        	linearSlideMotor2.set(0);
-        	linearSlideMotor1.set(0);
-        	//linear slide doesn't move
+        	double linearSlideSpeed = limit(padOperator.getY());
+        	linearSlideMotor1.set( linearSlideSpeed );
+        	linearSlideMotor2.set( linearSlideSpeed );
+        	//linear slide moves determined by the position of the Y axis on the operator pad 
         }
         
         if(padOperator.getRawButton(7) || padOperator.getRawButton(8))
@@ -614,6 +581,42 @@ public class Robot extends IterativeRobot
         {
         	linearSlideMotor1.set(stop);
         	linearSlideMotor2.set(stop);
+        }
+        
+        if(padOperator.getRawButton(1))
+        {
+        	//set tote position 1
+        }
+        else if(padOperator.getRawButton(1) && padOperator.getRawButton(6))
+        {
+        	//set tote plus container position 1
+        }
+        
+        if(padOperator.getRawButton(2))
+        {
+        	//set tote position 2
+        }
+        else if(padOperator.getRawButton(2) && padOperator.getRawButton(6))
+        {
+        	//set tote plus container position 2
+        }
+        
+        if(padOperator.getRawButton(3))
+        {
+        	//set tote position 3
+        }
+        else if(padOperator.getRawButton(3) && padOperator.getRawButton(6))
+        {
+        	//set tote plus container position 3
+        }
+        
+        if(padOperator.getRawButton(4))
+        {
+        	//set tote position 4
+        }
+        else if(padOperator.getRawButton(4) && padOperator.getRawButton(6))
+        {
+        	//set tote plus container position 4
         }
     }
     
