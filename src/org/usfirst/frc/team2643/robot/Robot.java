@@ -16,6 +16,7 @@ import org.usfirst.frc.team2643.robot.subsystems.ExampleSubsystem;
 
 public class Robot extends IterativeRobot 
 {
+	
 	//Drive motors
 	Talon forwardLeftMotor = new Talon(5);
 	Talon backLeftMotor = new Talon(6);
@@ -30,20 +31,20 @@ public class Robot extends IterativeRobot
 	SpeedController linearSlideMotor2;
 	
 	//Digital Inputs
-	DigitalInput slideSwitchTop;
-	DigitalInput slideSwitchBottom;
+	DigitalInput slideSwitchTop = new DigitalInput(6);
+	DigitalInput slideSwitchBottom = new DigitalInput(7);
 	
 	DigitalInput linearHookLimitSwitch;
+	DigitalInput frontSensor = new DigitalInput(9);
 		
 	//Controllers
-	Joystick driverController = new Joystick(1);
-	Joystick operatorController = new Joystick(2);
+	Joystick driverController = new Joystick(0);
 	
 	//Encoders
-	Encoder frontRightEncoder = new Encoder( 2 , 3 );
-	Encoder frontLeftEncoder = new Encoder ( 0 , 1 );
+	Encoder frontRightEncoder = new Encoder( 4 , 5 );
+	Encoder frontLeftEncoder = new Encoder ( 2 , 3 );
 	Encoder strafeEncoder = new Encoder ( 6 , 7 );
-	Encoder linearSlideEncoder = new Encoder ( 4 , 5 );
+	Encoder linearSlideEncoder = new Encoder ( 0 , 1 );
 	
 	//magic numbers
 	int slowButton = 1;
@@ -59,7 +60,7 @@ public class Robot extends IterativeRobot
 	double dPadSpeed = 0.5;
 	double encoderRotation = 360 ;
 	
-	//
+	//states
 	int state = 0;
 	
 	//
@@ -99,8 +100,331 @@ public class Robot extends IterativeRobot
 	double desired;
 	public static final ExampleSubsystem exampleSubsystem = new ExampleSubsystem();
 	public static OI oi;
-		
+    int autonomousState = 0; //For state machine
+    int startPosition = 0; //Starting position of the robot
+    int toteNumber; //Total number of bins that must be picked up
+    int autonomousCycle = 0; //Number of bins that have currently been picked up
+    
+    double autonomousForwardSpeed = 0.25; //How fast the robot will move forward / backwards
+    double autonomousStrafeSpeed = 0.5; //How fast the robot will strafe
+    
+    int toteDistance = 0; //Distance between two bins
+    int autonomousZoneDistance = 0; //How far forward robot must move from first staging zone to reach autonomous zone
+    int autonomousZoneBackupDistance = 0; //How far to back away after bin(s) have been placed in autonomous zone
+    int autonomousForwardDistance = 0; //How far forward robot must move when handling a new stack of bins
+    int autonomousBackupDistance = 0; //How far back robot must move after placing a bin on top of another bin ( so it can lower the linear slide )
+    
+    int autonomousToteLiftHeight = 0; //How high bin must be lifted in order to be stacked on top of another bin
+    int autonomousPlaceHeight2 = 0; //How low linear slide must be in order to let go of the top bin after stacking it
+    int autonomousPlaceHeight1 = 0; //How low linear slide must be in order to drive forward and pick up the bottom bin
+    
+    int currentAutonomousDirection; //Direction robot is strafing
+    int desiredAutonomousPosition; //Position robot is trying to strafe to ( relative to the robot's position at the beginning of autonomous )
+    
+    /*
+     * Data for what directions / distances to drive
+     * Position 1 is is the robot is placed on the leftmost bin, 2 for middle, and 3 for rightmost
+     * Data is organized in pairs
+     * First number is the direction ( 1 to drive to the right, -1 to drive to the left )
+     * Second number is the distance divided by the distance between bins ( 2 means shift over by two bins )
+     */
+    int[][] autonomousDriveData =
+    	{
+    		{ 1 , 1 , 1 , 1 } , //Position 1
+    		{ -1 , 1 , 1 , 2 } , //Position 2
+    		{ -1 , 1 , -1 , 1 } //Position 3
+    	};
+    
+    public void autonomousInit()
+    {
+    	frontRightEncoder.reset();
+    	frontLeftEncoder.reset();
+    	strafeEncoder.reset();
+    	
+    	//Set toteNumber
+    	//Set start position
+    }
+    
+    public void autonomousPeriodic()
+    {
+    	switch( autonomousState )
+    	{
+    		case 0: //Send linear slide down for the purpose of zeroing the encoder
+    			
+    			//Lower linear slide
+    			linearSlideMotor1.set( slideSpeedDown );
+    			linearSlideMotor2.set( slideSpeedDown );
+    			
+    			if( slideSwitchBottom.get() ) //When slide has reached the bottom
+    			{
+    				//Stop linear slide
+    				linearSlideMotor1.set( 0.0 );
+        			linearSlideMotor2.set( 0.0 );
+        			
+        			//Zero encoder
+        			linearSlideEncoder.reset();
+        			
+        			/*
+        			 * If there are any bins to be picked up, move forward
+        			 * Otherwise drive to the side for the purpose of entering the autonomous zone
+        			 */
+        			if( autonomousCycle < toteNumber )
+        			{
+        				//Move forward
+        				controlDriving( autonomousForwardSpeed , autonomousForwardSpeed , 0.0 );
+        				
+        				autonomousState = 1;
+        			}
+        			else
+        			{
+        				autonomousState = 4;
+        			}
+    			}
+    			break;
+    		
+    		case 1: //Drive robot forward until bin is hit
+    			
+    			//If bin has been hit
+    			if( linearHookLimitSwitch.get() )
+    			{
+    					//Stop robot
+    					controlDriving( 0.0 , 0.0 , 0.0 );
+    					
+    					//Raise linear slide
+    					linearSlideMotor1.set( slideSpeedUp );
+    					linearSlideMotor2.set( slideSpeedUp );
+    					
+    					autonomousState = 2;
+    			}
+    			break;
+    			
+    		case 2: //Lift the bin
+    			
+    			//If bin has been lifted high enough
+    			if( linearSlideEncoder.get() >= autonomousToteLiftHeight )
+    			{
+    				//Stop linear slide
+    				linearSlideMotor1.set( 0.0 );
+					linearSlideMotor2.set( 0.0 );
+					
+					//Drive backwards
+					controlDriving( -autonomousForwardSpeed , -autonomousForwardSpeed , 0.0 );
+					
+					autonomousState = 3;
+    			}
+    			break;
+    		
+    		case 3: //Back up
+    			
+    			//If robot has backed up far enough
+    			if( driveEncoderAverage() <= 0 )
+    			{
+    				//Increment the autonomous cycle, which keeps track of how many bins have been picked up
+    				autonomousCycle++;
+    				
+    				/*
+    				 * If there are still bins to be picked up, grab the strafe direction and strafe distance to the next bin from autonomousDriveData
+    				 * Otherwise calculate strafe direction and distance to autonomous zone
+    				 */
+    				if( autonomousCycle < toteNumber )
+    				{
+    					int[] data = autonomousDriveData[ startPosition ];
+    					currentAutonomousDirection = data[ ( autonomousCycle - 1 ) * 2 ];
+    					int distance = data[ ( ( autonomousCycle - 1 ) * 2 ) + 1 ];
+    					desiredAutonomousPosition += ( currentAutonomousDirection * distance * toteDistance );
+    				}
+    				else
+    				{
+    					desiredAutonomousPosition = -( toteDistance * startPosition );
+    					currentAutonomousDirection = -1;
+    				}
+    				
+    				double speed = autonomousStrafeSpeed * ( double )( currentAutonomousDirection );
+					controlDriving( 0.0 , 0.0 , autonomousStrafeSpeed * speed );
+    				
+    				autonomousState = 4;
+    			}
+    			break;
+    		
+    		case 4: //Drive to the side
+    			
+    			//If the robot has strafed far enough
+    			if( ( strafeEncoder.get() <= desiredAutonomousPosition && currentAutonomousDirection < 0 ) ||
+    				( strafeEncoder.get() >= desiredAutonomousPosition && currentAutonomousDirection > 0 ) )
+    			{
+    				//Drive forward
+    				controlDriving( autonomousForwardSpeed , autonomousForwardSpeed , 0.0 );
+    				
+    				/*
+    				 * If there are still bins to be picked up, set robot on path to next bin
+    				 * Otherwise set robot on path to autonomous zone
+    				 */
+    				if( autonomousCycle < toteNumber )
+    				{
+        				autonomousState = 5;
+    				}
+    				else
+    				{
+        				autonomousState = 9;
+    				}
+    			}
+    			break;
+    			
+    		case 5: //Drive forward to place bin on top of other bin
+    			
+    			//If robot has moved far enough forward
+    			if( driveEncoderAverage() >= autonomousForwardDistance )
+    			{
+    				//Lower linear slide
+    				linearSlideMotor1.set( slideSpeedDown );
+    				linearSlideMotor2.set( slideSpeedDown );
+    				
+    				//Stop robot
+    				controlDriving( 0.0 , 0.0 , 0.0 );
+    				
+    				autonomousState = 6;
+    			}
+    			break;
+    			
+    		case 6: //Let go of top bin
+    			
+    			//If slide has been lowered far enough to release the second bin
+    			if( linearSlideEncoder.get() <= autonomousPlaceHeight2 )
+    			{
+    				//Stop linear slide
+    				linearSlideMotor1.set( 0.0 );
+    				linearSlideMotor2.set( 0.0 );
+    				
+    				//Move robot backwards
+    				controlDriving( -autonomousForwardSpeed , -autonomousForwardSpeed , 0.0 );
+    				
+    				autonomousState = 7;
+    			}
+    			break;
+    		
+    		case 7: //Back up
+    			
+    			//If robot has moved back far enough
+    			if( driveEncoderAverage() <= autonomousBackupDistance )
+    			{
+    				//Lower linear slide
+    				linearSlideMotor1.set( slideSpeedDown );
+    				linearSlideMotor2.set( slideSpeedDown );
+    				
+    				//Stop robot
+    				controlDriving( 0.0 , 0.0 , 0.0 );
+    				
+    				autonomousState = 8;
+    			}
+    			break;
+    		
+    		case 8: //Lower linear slide enough to pick up bottom bin
+    			
+    			//If slide has been lowered enough to pick up the bottom bin
+    			if( linearSlideEncoder.get() <= autonomousPlaceHeight1 )
+    			{
+    				//Stop linear slide
+    				linearSlideMotor1.set( 0.0 );
+    				linearSlideMotor2.set( 0.0 );
+    				
+    				//Move robot forward
+    				controlDriving( autonomousForwardSpeed , autonomousForwardSpeed , 0.0 );
+    				
+    				autonomousState = 1;
+    			}
+    			break;
+    		
+    		case 9: //Drive forward until autonomous zone is reached
+    			
+    			//When autonomous zone has been reached
+    			if( driveEncoderAverage() >= autonomousZoneDistance )
+    			{
+    				//Lower linear slide
+    				linearSlideMotor1.set( slideSpeedDown );
+    				linearSlideMotor2.set( slideSpeedDown );
+    				
+    				//Stop robot
+    				controlDriving( 0.0 , 0.0 , 0.0 );
+    				
+    				autonomousState = 10;
+    			}
+    			break;
+    		
+    		case 10: //Lower linear slide to bottom
+    			
+    			//When slide has reached bottom
+    			if( slideSwitchBottom.get() )
+    			{
+    				//Stop linear slide
+    				linearSlideMotor1.set( 0.0 );
+    				linearSlideMotor2.set( 0.0 );
+    				
+    				//Move robot backwards
+    				controlDriving( -autonomousForwardSpeed , -autonomousForwardSpeed , 0.0 );
+    				
+    				autonomousState = 11;
+    			}
+    			break;
+    			
+    		case 11: //Back up robot then stop it
+    			
+    			//When robot has backed up far enough
+    			if( driveEncoderAverage() <= autonomousZoneBackupDistance )
+    			{
+    				//Stop robot
+    				controlDriving( 0.0 , 0.0 , 0.0 );
+    			}
+    			break;
+    	}
+    }
+    
     Command autonomousCommand;
+    
+    public void restartButtonToTheBottom()
+    {
+    	if( driverController.getRawButton(8) )
+    	{
+    		linearSlideMotor1.set(-1);
+    		linearSlideMotor2.set(-1);
+    		if( slideSwitchBottom.get() )
+    		{
+    			linearSlideEncoder.reset();
+    		}
+    	}	
+    }
+    
+    //Gets the average of the two drive encoders
+    public int driveEncoderAverage()
+    {
+    	return ( frontLeftEncoder.get() - frontRightEncoder.get() ) / 2;
+    }
+    
+    /*
+     * Controls the drive train
+     * Accepts values for left motors, right motors, and strafe motors
+     */
+    public void controlDriving( double leftControlSpeed, double rightControlSpeed, double strafeControlSpeed )
+    {
+        backLeftMotor.set( leftControlSpeed );
+        forwardLeftMotor.set( leftControlSpeed );
+    	
+    	forwardRightMotor.set( -rightControlSpeed );
+        backRightMotor.set( -rightControlSpeed );
+        
+        strafeMotor1.set( strafeControlSpeed );
+        strafeMotor2.set( strafeControlSpeed );
+    }
+    
+    public void sensor()
+    {
+    	if(driverController.getPOV() == 0 && frontSensor.get() )
+    	{
+    		forwardLeftMotor.set(0);
+    		backLeftMotor.set(0);
+    		forwardRightMotor.set(0);
+    		backRightMotor.set(0);
+    	}
+    }
     
     public int desire( int desiredPosition )
     {
@@ -131,393 +455,6 @@ public class Robot extends IterativeRobot
 	}
 	
 	//Beginning of Autonomous Mode
-    public void autonomousInit() 
-    {
-        // schedule the autonomous command (example)
-        if (autonomousCommand != null) autonomousCommand.start();
-        
-        frontRightEncoder.reset();
-        frontLeftEncoder.reset();
-        strafeEncoder.reset();
-        linearSlideEncoder.reset();
-    }
-
-    
-    public void autonomousPeriodic() 
-    {
-        Scheduler.getInstance().run();
-        backDrive();
-        // if(/*position left*/)
-        {
-        	switch (state)
-        	{
-        		case 0: //move forward and both limit switches are hit moves to state 1
-        			
-        			if(slideSwitchBottom.get())
-        			{
-        				linearSlideMotor1.set(stop);
-        				linearSlideMotor2.set(stop);
-        			}
-        			else
-        			{
-        				linearSlideMotor1.set(slideSpeedDown);
-        				linearSlideMotor2.set(slideSpeedDown);
-        			}
-        			
-        			forwardLeftMotor.set(forwardSpeed);
-        			forwardRightMotor.set(forwardSpeed);
-        			backLeftMotor.set(forwardSpeed);
-        			backRightMotor.set(forwardSpeed);
-        			if(linearHookLimitSwitch.get())
-        			{
-        				counter ++;
-        				state = 1;
-        			}
-        			break;
-                
-        		case 1://motor stop, slide moves up, if slide reaches top or goes a certain distance goes to state 2, or MOVES TO STATE 8
-        			forwardLeftMotor.set(stop);
-        			forwardRightMotor.set(stop);
-        			backLeftMotor.set(stop);
-        			backRightMotor.set(stop);
-        			linearSlideMotor1.set(slideSpeedUp);
-        			linearSlideMotor2.set(slideSpeedUp);
-        			if(slideSwitchTop.get() || linearSlideEncoder.get() >= upDistance)//maybe change the distance
-        			{
-        				if(counter >= 3)
-        				{
-        					state = 8;
-        				}
-        				else
-        				{
-        					state = 2;
-        				}
-        			}
-        			break;
-                
-        		case 2://slide stops, robot moves back, if moves a certain distance, move to state 3
-        			linearSlideMotor1.set(stop);
-        			linearSlideMotor2.set(stop);
-        			forwardLeftMotor.set(backSpeed);
-        			forwardRightMotor.set(backSpeed);
-        			backLeftMotor.set(backSpeed);
-        			backRightMotor.set(backSpeed);
-        			if((frontLeftEncoder.get() / 360) * diameter * Math.PI >= backDistance || frontRightEncoder.get() >= backDistance)
-        			{
-        				state = 3;
-        			}
-        			break;
-                
-        		case 3://motors stop, and move to right/left, if goes a certain distance, move to state 4
-        			forwardLeftMotor.set(stop);
-        			forwardRightMotor.set(stop);
-        			backLeftMotor.set(stop);
-        			backRightMotor.set(stop);
-        			strafeMotor1.set(rightSpeed);
-        			strafeMotor2.set(rightSpeed);
-                if(strafeEncoder.get() >= rightDistance)
-                {
-                	state = 4;
-                }
-        		break;
-
-        		case 4://move forward, if the robot goes a certain distance, it moves to state 5
-        			forwardLeftMotor.set(forwardSpeed);
-        			forwardRightMotor.set(forwardSpeed);
-        			backLeftMotor.set(forwardSpeed);
-        			backRightMotor.set(forwardSpeed);
-        			if(frontLeftEncoder.get() >= forwardDistance || frontRightEncoder.get() >= forwardDistance)
-	                {
-	                	state = 5;	
-	                }
-	        		break;
-	        		
-        		case 5://linear slide goes down, if slide is down a certain distance move to state 6
-        			linearSlideMotor1.set(slideSpeedDown);
-        			linearSlideMotor2.set(slideSpeedDown);
-        			if(linearSlideEncoder.get() >= downDistance)
-        			{
-        				state = 6;
-        			}
-        			break;
-        			
-        		case 6://moves back, if goes a certain distance move to state 7
-	        		forwardLeftMotor.set(backSpeed);
-	                forwardRightMotor.set(backSpeed);
-	                backLeftMotor.set(backSpeed);
-	                backRightMotor.set(backSpeed);
-	                if(frontLeftEncoder.get() >= backDistance || frontRightEncoder.get() >= backDistance)
-	                {
-	                	state = 7;
-	                }
-	                break;
-                
-        		case 7://slide moves down, if slide moves a certain distance goes back to state 0
-        			linearSlideMotor1.set(slideSpeedDown);
-	        		linearSlideMotor2.set(slideSpeedDown);
-	        		if(linearSlideEncoder.get() >= downDistance)
-	        		{
-	        			state = 0;
-	        		}
-	        		break;
-        		
-        		case 8:
-        			//Do something to go to auton zone
-        			break;
-        	}
-        }
-      //  else if(/*position middle*/)
-        {
-        	switch(state)
-        	{
-        	case 0://slide moves down and the wheels move forward, if goes a certain distance move to state 1
-        		
-        		if(slideSwitchBottom.get())
-    			{
-    				linearSlideMotor1.set(stop);
-    				linearSlideMotor2.set(stop);
-    			}
-    			else
-    			{
-    				linearSlideMotor1.set(slideSpeedDown);
-    				linearSlideMotor2.set(slideSpeedDown);
-    			}
-    			forwardLeftMotor.set(forwardSpeed);
-    			forwardRightMotor.set(forwardSpeed);
-    			backLeftMotor.set(forwardSpeed);
-    			backRightMotor.set(forwardSpeed);
-    			if(linearHookLimitSwitch.get())
-    			{
-    				counter ++;
-    				state = 1;
-    			}
-    			break;
-    			
-    		case 1://motor stop, slide moves up, if slide reaches top or goes a certain distance goes to state 2, or MOVES TO STATE 8
-    			forwardLeftMotor.set(stop);
-    			forwardRightMotor.set(stop);
-    			backLeftMotor.set(stop);
-    			backRightMotor.set(stop);
-    			linearSlideMotor1.set(slideSpeedUp);
-    			linearSlideMotor2.set(slideSpeedUp);
-    			if(slideSwitchTop.get() || linearSlideEncoder.get() >= upDistance)
-    			{
-    				if(counter >= 3)
-    				{
-    					state = 8;
-    				}
-    				else
-    				{
-    					state = 2;
-    				}
-    			}
-    			break;
-    			
-    		case 2://slide stops, robot moves back, if moves a certain distance, move to state 3
-    			linearSlideMotor1.set(stop);
-    			linearSlideMotor2.set(stop);
-    			forwardLeftMotor.set(backSpeed);
-    			forwardRightMotor.set(backSpeed);
-    			backLeftMotor.set(backSpeed);
-    			backRightMotor.set(backSpeed);
-    			if(frontLeftEncoder.get() >= backDistance || frontRightEncoder.get() >= backDistance)
-    			{
-    				state = 3;
-    			}
-    			break;
-            
-    		case 3://motors stop, and move to right/left, if goes a certain distance, move to state 4
-    			forwardLeftMotor.set(stop);
-    			forwardRightMotor.set(stop);
-    			backLeftMotor.set(stop);
-    			backRightMotor.set(stop);
-    			strafeMotor1.set(leftSpeed);
-    			strafeMotor2.set(leftSpeed);
-    			if(strafeEncoder.get() >= leftDistance)
-    			{
-    				strafeMotor1.set(stop);
-    				strafeMotor2.set(stop);
-    				state = 4;
-    			}
-    			break;
-
-    		case 4://move forward, if the robot goes a certain distance, it moves to state 5
-    			forwardLeftMotor.set(forwardSpeed);
-    			forwardRightMotor.set(forwardSpeed);
-    			backLeftMotor.set(forwardSpeed);
-    			backRightMotor.set(forwardSpeed);
-    			if(frontLeftEncoder.get() >= forwardDistance || frontRightEncoder.get() >= forwardDistance)
-                {
-                	state = 5;	
-                }
-        		break;
-        		
-    		case 5://linear slide goes down, if slide is down a certain distance move to state 6
-    			linearSlideMotor1.set(slideSpeedDown);
-    			linearSlideMotor2.set(slideSpeedDown);
-    			if(linearSlideEncoder.get() >= downDistance)
-    			{
-    				state = 6;
-    			}
-    			break;
-    			
-    		case 6://moves back, if goes a certain distance move to state 7
-        		forwardLeftMotor.set(backSpeed);
-                forwardRightMotor.set(backSpeed);
-                backLeftMotor.set(backSpeed);
-                backRightMotor.set(backSpeed);
-                if(frontLeftEncoder.get() >= backDistance || frontRightEncoder.get() >= backDistance)
-                {
-                	state = 7;
-                }
-                break;
-            
-    		case 7://slide moves down, if slide moves a certain distance goes back to state 0
-    			linearSlideMotor1.set(slideSpeedDown);
-        		linearSlideMotor2.set(slideSpeedDown);
-        		if(linearSlideEncoder.get() >= downDistance)
-        		{
-        			state = 8;
-        		}
-        		break;
-        		
-    		case 8:
-    			linearSlideMotor1.set(stop);
-    			linearSlideMotor2.set(stop);
-    			strafeMotor1.set(rightDistance * 2 );
-    			strafeMotor2.set(rightDistance * 2);
-    			if(strafeEncoder.get() >= rightDistance)
-    			{
-    				state = 0;
-    			}
-    		
-    		case 9:
-    			//Do something to go to auton zone
-    			break;
-        	}
-        }
-      //  else if(/*right start*/)
-        {
-        	switch (state)
-        	{
-        		case 0: //move forward and both limit switches are hit moves to state 1
-        			
-        			if(slideSwitchBottom.get())
-        			{
-        				linearSlideMotor1.set(stop);
-        				linearSlideMotor2.set(stop);
-        			}
-        			else
-        			{
-        				linearSlideMotor1.set(slideSpeedDown);
-        				linearSlideMotor2.set(slideSpeedDown);
-        			}
-        			
-        			forwardLeftMotor.set(forwardSpeed);
-        			forwardRightMotor.set(forwardSpeed);
-        			backLeftMotor.set(forwardSpeed);
-        			backRightMotor.set(forwardSpeed);
-        			if( linearHookLimitSwitch.get() )
-        			{
-        				counter ++;
-        				state = 1;
-        			}
-        			break;
-                
-        		case 1://motor stop, slide moves up, if slide reaches top or goes a certain distance goes to state 2, or MOVES TO STATE 8
-        			forwardLeftMotor.set(stop);
-        			forwardRightMotor.set(stop);
-        			backLeftMotor.set(stop);
-        			backRightMotor.set(stop);
-        			linearSlideMotor1.set(slideSpeedUp);
-        			linearSlideMotor2.set(slideSpeedUp);
-        			if(slideSwitchTop.get() || linearSlideEncoder.get() >= upDistance)
-        			{
-        				if(counter >= 3)
-        				{
-        					state = 8;
-        				}
-        				else
-        				{
-        					state = 2;
-        				}
-        			}
-        			break;
-                
-        		case 2://slide stops, robot moves back, if moves a certain distance, move to state 3
-        			linearSlideMotor1.set(stop);
-        			linearSlideMotor2.set(stop);
-        			forwardLeftMotor.set(backSpeed);
-        			forwardRightMotor.set(backSpeed);
-        			backLeftMotor.set(backSpeed);
-        			backRightMotor.set(backSpeed);
-        			if(frontLeftEncoder.get() >= backDistance || frontRightEncoder.get() >= backDistance)
-        			{
-        				state = 3;
-        			}
-        			break;
-                
-        		case 3://motors stop, and move to right/left, if goes a certain distance, move to state 4
-        			forwardLeftMotor.set(stop);
-        			forwardRightMotor.set(stop);
-        			backLeftMotor.set(stop);
-        			backRightMotor.set(stop);
-        			strafeMotor1.set(rightSpeed);
-        			strafeMotor2.set(rightSpeed);
-                if(strafeEncoder.get() >= rightDistance)
-                {
-                	state = 4;
-                }
-        		break;
-
-        		case 4://move forward, if the robot goes a certain distance, it moves to state 5
-        			forwardLeftMotor.set(forwardSpeed);
-        			forwardRightMotor.set(forwardSpeed);
-        			backLeftMotor.set(forwardSpeed);
-        			backRightMotor.set(forwardSpeed);
-        			if(frontLeftEncoder.get() >= forwardDistance || frontRightEncoder.get() >= forwardDistance)
-	                {
-	                	state = 5;	
-	                }
-	        		break;
-	        		
-        		case 5://linear slide goes down, if slide is down a certain distance move to state 6
-        			linearSlideMotor1.set(slideSpeedDown);
-        			linearSlideMotor2.set(slideSpeedDown);
-        			if(linearSlideEncoder.get() >= downDistance)
-        			{
-        				state = 6;
-        			}
-        			break;
-        			
-        		case 6://moves back, if goes a certain distance move to state 7
-	        		forwardLeftMotor.set(backSpeed);
-	                forwardRightMotor.set(backSpeed);
-	                backLeftMotor.set(backSpeed);
-	                backRightMotor.set(backSpeed);
-	                if(frontLeftEncoder.get() >= backDistance || frontRightEncoder.get() >= backDistance)
-	                {
-	                	state = 7;
-	                }
-	                break;
-                
-        		case 7://slide moves down, if slide moves a certain distance goes back to state 0
-        			linearSlideMotor1.set(slideSpeedDown);
-	        		linearSlideMotor2.set(slideSpeedDown);
-	        		if(linearSlideEncoder.get() >= downDistance)
-	        		{
-	        			state = 0;
-	        		}
-	        		break;
-        		
-        		
-        		case 8:
-        			//Do something to go to auton zone
-        			break;
-        	}
-        }
-    }
-    
     public void teleopInit() 
     {
         if (autonomousCommand != null) autonomousCommand.cancel();
@@ -560,29 +497,16 @@ public class Robot extends IterativeRobot
     	}
     }
     
-    //this is the driving code that will be used
-    public void controlDriving( double leftControlSpeed, double rightControlSpeed, double strafeControlSpeed )
-    {
-        backLeftMotor.set( leftControlSpeed ); 
-        forwardLeftMotor.set( leftControlSpeed ); 
-    	
-    	forwardRightMotor.set( -rightControlSpeed );
-        backRightMotor.set( -rightControlSpeed );
-        
-        strafeMotor1.set( strafeControlSpeed );
-        strafeMotor2.set( strafeControlSpeed );
-    }
-    
     //this is the p-pad driver 
     public void dPadDriver()
     {
     	int POV = driverController.getPOV();
-    	if( POV == 1 || POV == 2 || POV == 8 )
+    	if( POV == 0 || POV == 45 || POV == 315 )
     	{
     		leftControlSpeed = dPadSpeed;
     		rightControlSpeed = dPadSpeed;
     	}
-    	else if( POV == 4 || POV == 5 || POV == 6 )
+    	else if( POV == 135 || POV == 180 || POV == 225 )
     	{
     		leftControlSpeed = -dPadSpeed;
     		rightControlSpeed = -dPadSpeed;
@@ -593,11 +517,11 @@ public class Robot extends IterativeRobot
     		rightControlSpeed = 0.0;
     	}
     	
-    	if( POV == 2 || POV == 3 || POV == 4 )
+    	if( POV == 45 || POV == 90 || POV == 135 )
     	{
     		strafeControlSpeed = dPadSpeed;
     	}
-    	else if( POV== 6 || POV == 7 || POV == 8 )
+    	else if( POV== 225 || POV == 270 || POV == 315 )
     	{
     		strafeControlSpeed = -dPadSpeed;
     	}
@@ -612,14 +536,14 @@ public class Robot extends IterativeRobot
     {
     	if(driverController.getRawButton(slowButton))
     	{
-    		leftControlSpeed = limit( (driverController.getY() + driverController.getZ()) / slowDriveSpeedFactor );
-    		rightControlSpeed = limit( (driverController.getY() - driverController.getZ()) / slowDriveSpeedFactor );
+    		leftControlSpeed = limit( (-driverController.getY() + driverController.getZ()) / slowDriveSpeedFactor );
+    		rightControlSpeed = limit( (-driverController.getY() - driverController.getZ()) / slowDriveSpeedFactor );
     		strafeControlSpeed = driverController.getX() / slowDriveSpeedFactor;
     	}	
     	else
     	{
-    		leftControlSpeed = limit( driverController.getY() + driverController.getZ() );
-    		rightControlSpeed = limit( driverController.getY() - driverController.getZ() );
+    		leftControlSpeed = limit( -driverController.getY() + driverController.getZ() );
+    		rightControlSpeed = limit( -driverController.getY() - driverController.getZ() );
     		strafeControlSpeed = driverController.getX();	
     	}
     }
@@ -628,7 +552,7 @@ public class Robot extends IterativeRobot
     public void masterDrive()
     {
         int POV = driverController.getPOV();
-        if( POV >= 1 )
+        if( POV >= 0 )
         {
         	dPadDriver();
         }
@@ -639,37 +563,36 @@ public class Robot extends IterativeRobot
         controlDriving( leftControlSpeed, rightControlSpeed, strafeControlSpeed );
     }
     
-    //this is the point of view using hook drive 
-    public void dPadHookDrive()
+    //driving with the stick // fix
+    public void stickDriveHookDrive()
     {
-    	int POV = operatorController.getPOV();
-    	if( POV == 1)
+    	double operator = driverController.getThrottle();
+	  	
+    	if( operator < 0 && !slideSwitchTop.get() )
     	{
-    		linearSlideMotor1.set(slideSpeedUp);
-    		linearSlideMotor2.set(slideSpeedUp);    		
+    		linearSlideMotor1.set( -operator );
+        	linearSlideMotor2.set( -operator );
+    		
+    	}
+    	else if( operator > 0 && !slideSwitchBottom.get() )
+    	{
+    		linearSlideMotor1.set( -operator );
+        	linearSlideMotor2.set( -operator );
     	}
     	else
     	{
-    		linearSlideMotor1.set(slideSpeedDown);
-    		linearSlideMotor2.set(slideSpeedDown);   
+    		linearSlideMotor1.set(0);
+    		linearSlideMotor2.set(0);
     	}
-    }
-    
-    //driving with the stick
-    public void stickDriveHookDrive()
-    {
-    	double operator = operatorController.getY();
-    	linearSlideMotor1.set( operator );
-    	linearSlideMotor2.set( operator );
     }
     
     //this controls all the drive code that the robot can do, such as d-pad and stick drive
     public void masterManualLinearDrive()
-    {
-    	int POV = operatorController.getPOV();
-    	double operator = operatorController.getY();
-    	boolean button5 = operatorController.getRawButton(5);
-    	boolean button6 = operatorController.getRawButton(6);
+    {    	
+    	int POV = driverController.getPOV();
+    	double operator = driverController.getY();
+    	boolean button5 = driverController.getRawButton(5);
+    	boolean button6 = driverController.getRawButton(6);
     	
     	if( (button5 || button6) && linearHookLimitSwitch.get() )
     	{
@@ -677,9 +600,9 @@ public class Robot extends IterativeRobot
     		linearSlideMotor2.set(slideSpeedUp);
     		desired = linearSlideEncoder.get();
     	}
-    	else if( POV == 1 || POV == 5 )
+    	else if( POV == 0 || POV == 180 )
     	{
-    		dPadHookDrive();
+    		
     		desired = linearSlideEncoder.get();
     	}
     	else if( operator <= -thumbStickTolerance || operator >= thumbStickTolerance )
@@ -696,12 +619,12 @@ public class Robot extends IterativeRobot
     //this controls the master slide and goes through a switch go thorough the switch statement
     public void masterLinearSlide()
     {
-    	boolean button1 = operatorController.getRawButton(1);
-    	boolean button2 = operatorController.getRawButton(2);
-    	boolean button3 = operatorController.getRawButton(3);
-    	boolean button4 = operatorController.getRawButton(4);
-    	int POV = operatorController.getPOV();
-    	double operator = operatorController.getY();
+    	boolean button1 = driverController.getRawButton(1);
+    	boolean button2 = driverController.getRawButton(2);
+    	boolean button3 = driverController.getRawButton(3);
+    	boolean button4 = driverController.getRawButton(4);
+    	int POV = driverController.getPOV();
+    	double operator = driverController.getY();
     	int newButton;
     	int state = 0;
     	
@@ -812,9 +735,7 @@ public class Robot extends IterativeRobot
     {
         Scheduler.getInstance().run();
         
-        masterDrive();
-        masterLinearSlide();
-        backDrive();
+        stickDriveHookDrive();
     }
     
     /**
