@@ -151,7 +151,8 @@ public class Robot extends IterativeRobot {
         Scheduler.getInstance().run();
     }
 
-    public void teleopInit() {
+    public void teleopInit()
+    {
     	lsEncoder.reset();
     	led.teleopInit();
     	arcade = true;
@@ -162,42 +163,34 @@ public class Robot extends IterativeRobot {
         if (autonomousCommand != null) autonomousCommand.cancel();
     }
 
-    /**
-     * This function is called when the disabled button is hit.
-     * You can use it to reset subsystems before shutting down.
-     */
     public void disabledInit(){
 
     }
-
-    /**
-     * This function is called periodically during operator control
-     */
     public void teleopPeriodic() {
     	System.out.println(lsEncoder.get());
       	
     	//led.hook( lsEncoder.get() );
-    	led.bars();
-    	drive.arcadeDrive( driveStick );
+    	led.bars(); //leds 
+    	drive.arcadeDrive( driveStick ); //sets the robot to arcade drive
     	
     	//double strafeSpeed = ( 1 - driveStick.getZ() ) / 2.0;
-    	if( driveStick.getRawButton( 5 ) )
+    	if( driveStick.getRawButton( 5 ) ) //if button 5 is pressed
     	{
-    		strafe1.set( 0.3 );
+    		strafe1.set( 0.3 ); //strafe moves to the ? side
     		strafe2.set( 0.3 );
     	}
-    	else if( driveStick.getRawButton( 6 ) )
+    	else if( driveStick.getRawButton( 6 ) ) //else if button 6 is pressed
     	{
-    		strafe1.set( -0.3 );
+    		strafe1.set( -0.3 ); //strafe moves to the ? sides
     		strafe2.set( -0.3 );
     	}
     	else
     	{
-    		strafe1.set( 0.0 );
+    		strafe1.set( 0.0 ); //Stop if neither
     		strafe2.set( 0.0 );
     	}
     	
-    	if( driveStick.getRawButton( 10 ) )
+    	if( driveStick.getRawButton( 10 ) ) // //non-essiental code
     	{
     		arcade = true;
     	}
@@ -218,21 +211,22 @@ public class Robot extends IterativeRobot {
     		lslideMotor2.set( -operatorStick.getY() );
     	}*/
     	
-    	if(bottomSwitch.get() && driveStick.getRawAxis(3) > 0 || topSwitch.get() && driveStick.getRawAxis(3) < 0)
+    	if(bottomSwitch.get() && driveStick.getRawAxis(3) > 0 || topSwitch.get() && driveStick.getRawAxis(3) < 0) //if the limit switches of either limit switches are hit
+    																											  //and if the joysticks are moving in the reverse position
     	{
-    		lslideMotor1.set( 0 );
+    		lslideMotor1.set( 0 ); //set the motors to stop
     		lslideMotor2.set( 0 );
     	}
     	else 
     	{
-    		if(driveStick.getRawButton(7) && driveStick.getRawButton(8))
+    		if(driveStick.getRawButton(7) && driveStick.getRawButton(8)) //if button 7 and 8 are pressed
     		{
-    			lslideMotor1.set( -driveStick.getRawAxis(3) / 2.4 );
+    			lslideMotor1.set( -driveStick.getRawAxis(3) / 2.4 );//slows the linear slide
     			lslideMotor2.set( -driveStick.getRawAxis(3) / 2.4 );
     		}
     		else
     		{
-    			lslideMotor1.set( -driveStick.getRawAxis(3) );
+    			lslideMotor1.set( -driveStick.getRawAxis(3) );//full speed for the linear slide
     			lslideMotor2.set( -driveStick.getRawAxis(3) );
     		}
     	}
